@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Xuesong Peng <pengxuesong.cn@gmail.com>
+ * Copyright (c) 2023, 2025 Xuesong Peng <pengxuesong.cn@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
  * 2012-07-07 GONG Chen <chen.sst@gmail.com>
  *
  */
-#Requires AutoHotkey v2.0 32-bit
+#Requires AutoHotkey v2.0
 #Include "..\rime_api.ahk"
 
 ; rime := RimeApi()
@@ -54,7 +54,7 @@ select_dir(tag, GuiCtrlObj, Info) {
 
 confirm(tab, GuiCtrlObj, Info) {
     GuiObj := GuiCtrlObj.Gui
-    switch tab {
+    switch tab.Value {
         case 1:
             traits := RimeTraits()
             user_dir := GuiObj["UserDataDirInput"].Value
@@ -66,9 +66,13 @@ confirm(tab, GuiCtrlObj, Info) {
             traits.prebuilt_data_dir := traits.shared_data_dir . "\build"
             traits.modules := [ "deployer" ]
             rime := RimeApi()
-            rime.deployer_initialize(traits)
+            rime.setup(traits)
+            rime.deployer_initialize(0)
             if rime.run_task("workspace_update")
                 MsgBox("部署成功")
+            else
+                MsgBox("部署失败")
+        case 2:
         default:
             ; 
     }
@@ -77,11 +81,13 @@ confirm(tab, GuiCtrlObj, Info) {
 main() {
     weasel_shared_data_dir := RegRead("HKEY_LOCAL_MACHINE\Software\Rime\Weasel", "WeaselRoot", "")
     if weasel_shared_data_dir
-        weasel_shared_data_dir := weasel_shared_data_dir . "\data"
+        weasel_shared_data_dir := Format("{}\data", weasel_shared_data_dir)
+    else
+        weasel_shared_data_dir := Format("{}\rime", A_WorkingDir)
 
     weasel_user_data_dir := RegRead("HKEY_CURRENT_USER\Software\Rime\Weasel", "RimeUserDir", "")
     if not weasel_user_data_dir
-        weasel_user_data_dir := EnvGet("AppData") . "\Rime"
+        weasel_user_data_dir := Format("{}\rime", A_WorkingDir)
 
     Main := Gui()
     Main.MarginX := 10
@@ -89,20 +95,23 @@ main() {
     Main.SetFont("S12", "Microsoft YaHei UI")
     Main.Title := "AHK Rime Deployer"
     tabs := Main.AddTab3(, [ "部署", "添加方案", "编译", "激活方案" ])
-    Main.AddGroupBox("w320 r1 section", "用户数据目录，留空默认当前目录")
+    Main.AddGroupBox("w320 r1 section", "用户数据目录")
     Main.AddEdit("vUserDataDirInput -Multi w240 xs+10 ys+26 r1", weasel_user_data_dir).GetPos(, , , &height)
     Main.AddButton("hp yp", "选择").OnEvent("Click", select_dir.Bind("UserDataDirInput"))
-    Main.AddGroupBox("w320 r1 section xs y+m", "共享数据目录，留空默认当前目录")
+    Main.AddGroupBox("w320 r1 section xs y+m", "共享数据目录")
     Main.AddEdit("vSharedDataDirInput -Multi w240 xs+10 ys+26 r1", weasel_shared_data_dir)
     Main.AddButton("hp yp", "选择").OnEvent("Click", select_dir.Bind("SharedDataDirInput"))
     Main.AddGroupBox("w320 r1 section xs y+m", "构建目录，留空默认为用户目录内的 build")
     Main.AddEdit("vStagingDirInput -Multi w240 xs+10 ys+26 r1")
     Main.AddButton("hp yp", "选择").OnEvent("Click", select_dir.Bind("StagingDirInput"))
     tabs.UseTab(2)
-    Main.AddText(, "每行一个方案 ID")
-    Main.AddEdit("vAddSchemaInput w320 r5")
+    Main.AddGroupBox("w320 r1 section", "用户数据目录")
+    Main.AddEdit("vUserDataDirInput2 -Multi w240 xs+10 ys+26 r1", weasel_user_data_dir).GetPos(, , , &height)
+    Main.AddButton("hp yp", "选择").OnEvent("Click", select_dir.Bind("UserDataDirInput2"))
+    Main.AddText("xs" , "每行一个方案 ID")
+    Main.AddEdit("vAddSchemaInput w320 r3")
     tabs.UseTab()
-    Main.AddButton("Default vDftBtn w80 xp+250 y+m h" . height, "确定").OnEvent("Click", confirm.Bind(tabs.Value))
+    Main.AddButton("Default vDftBtn w80 xp+250 y+m h" . height, "确定").OnEvent("Click", confirm.Bind(tabs))
     Main.Show("AutoSize")
 }
 
