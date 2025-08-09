@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2024 Xuesong Peng <pengxuesong.cn@gmail.com>
+ * Copyright (c) 2023 - 2025 Xuesong Peng <pengxuesong.cn@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -380,6 +380,16 @@ class RimeContext extends RimeVersionedStruct {
     }
     menu {
         get => RimeMenu(this.Ptr + RimeContext.menu_offset)
+    }
+    commit_text_preview {
+        get => this.c_str_get(, RimeContext.commit_text_preview_offset)
+    }
+    select_labels[index] {
+        get {
+            if index < 1
+                throw RimeError("Invalid index.")
+            this.c_str_get(, RimeContext.select_labels_offset + (index - 1) * A_PtrSize)
+        }
     }
 } ; RimeContext
 
