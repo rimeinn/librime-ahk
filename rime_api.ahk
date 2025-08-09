@@ -386,9 +386,13 @@ class RimeContext extends RimeVersionedStruct {
     }
     select_labels[index] {
         get {
-            if index < 1
+            if index < 0
                 throw RimeError("Invalid index.")
-            this.c_str_get(, RimeContext.select_labels_offset + (index - 1) * A_PtrSize)
+            if index == 0
+                return this.num_get(RimeContext.select_labels_offset, "Ptr")
+            if ptr := this.select_labels[0]
+                return this.c_str_get(ptr, (index - 1) * A_PtrSize)
+            return 0
         }
     }
 } ; RimeContext
