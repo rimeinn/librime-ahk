@@ -33,6 +33,10 @@ class RimeString extends Buffer {
         super.__New(StrPut(val, "UTF-8"), 0)
         StrPut(val, this, "UTF-8")
     }
+
+    ToString() {
+        return StrGet(this, "UTF-8")
+    }
 }
 
 /**
@@ -63,6 +67,24 @@ class RimeStringArray extends Buffer {
                 p := NumPut("Ptr", pstr, p)
                 pstr += StrPut(val, pstr, "UTF-8")
             }
+        }
+    }
+
+    /**
+     * Get the string at index
+     * 
+     * @param index must be >= 0; NOTE: there's no boundary check for index > Length
+     * @returns {String | Pointer} 0 returns the pointer to the array, >0 returns the string at index
+     */
+    __Item[index] {
+        get {
+            if index < 0
+                throw RimeError("Invalid index.")
+            if index == 0
+                return NumGet(this, 0, "Ptr")
+            if ptr := NumGet(this, (index - 1) * A_PtrSize, "Ptr")
+                return StrGet(ptr, "UTF-8")
+            return 0
         }
     }
 }
