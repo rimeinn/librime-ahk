@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Xuesong Peng <pengxuesong.cn@gmail.com>
+ * Copyright (c) 2023 - 2026 Xuesong Peng <pengxuesong.cn@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,248 +11,288 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
  * Original C++ code rime_api_console.cc
- *
- * Copyright RIME Developers
- * Distributed under the BSD License
- *
- * 2011-08-29 GONG Chen <chen.sst@gmail.com>
- *
  */
 #Requires AutoHotkey v2.0
 #Include "..\rime_api.ahk"
 
-Print(GuiCtrlObj, output) {
-    static text
-    if not IsSet(text)
-        text := output
-    else text := GuiCtrlObj.Value . "`r`n" . output
-    GuiCtrlObj.Value := text
-    ControlSend("^{End}", GuiCtrlObj)
+AppendLog(gui, message) {
+    local log := gui["Log"]
+    log.Value := log.Value ? log.Value . "`r`n" . message : message
+    ControlSend("^{End}", log)
 }
 
-PrintStatus(GuiCtrlObj, status) {
-    Print(GuiCtrlObj, "schema: " . status.schema_id . " / " . status.schema_name)
-    out := "status: "
-    if status.is_disabled
-        out := out . "disabled "
-    if status.is_composing
-        out := out . "composing "
-    if status.is_ascii_mode
-        out := out . "ascii "
-    if status.is_full_shape
-        out := out . "full_shape "
-    if status.is_simplified
-        out := out . "simplified "
-    Print(GuiCtrlObj, out)
-}
-
-PrintComposition(GuiCtrlObj, composition) {
-    if not preedit := composition.preedit
-        return
-    len := StrPut(preedit, "UTF-8")
-    start := composition.sel_start
-    end := composition.sel_end
-    cursor := composition.cursor_pos
-    out := ""
-    i := 0
-    Loop Parse preedit {
-        if start < end {
-            if i = start
-                out := out . "["
-            else if i = end
-                out := out . "]"
-        }
-        if i = cursor
-            out := out . "|"
-        if i < len
-            out := out . A_LoopField
-        i := i + StrPut(A_LoopField, "UTF-8") - 1
+StatusText(status) {
+    local out := status.schema_name ? status.schema_name : "未选择方案"
+    local flags := []
+    if status.is_disabled {
+        flags.Push("已禁用")
     }
-    ; AHK Loop Parse string does not include ending '\0'
-    if start < end and i = end
-        out := out . "]"
-    if i = cursor
-        out := out . "|"
-    Print(GuiCtrlObj, out)
+    if status.is_composing {
+        flags.Push("输入中")
+    }
+    if status.is_ascii_mode {
+        flags.Push("ASCII")
+    }
+    if status.is_full_shape {
+        flags.Push("全角")
+    }
+    if status.is_simplified {
+        flags.Push("简体")
+    }
+    return flags.Length ? out . " · " . Join(flags, " · ") : out
 }
 
-PrintMenu(GuiCtrlObj, menu) {
-    if menu.num_candidates = 0
+Join(items, separator := "") {
+    local result := ""
+    for index, item in items {
+        result .= (index = 1 ? "" : separator) . item
+    }
+    return result
+}
+
+UpdateStatus(state) {
+    if (status := state.api.get_status(state.session_id)) {
+        state.gui["Status"].Text := StatusText(status)
+        state.api.free_status(status)
+    }
+}
+
+UpdateComposition(state, context) {
+    local composition := context.composition
+    if composition.length > 0 {
+        state.gui["Composition"].Text := composition.preedit
+    } else {
+        state.gui["Composition"].Text := "（未输入）"
+    }
+}
+
+UpdateCandidates(state, context) {
+    local list, menu, candidates, candidate
+    list := state.gui["Candidates"]
+    list.Delete()
+    menu := context.menu
+    if menu.num_candidates = 0 {
+        state.gui["Page"].Text := "无候选"
+        state.gui["PrevPage"].Enabled := false
+        state.gui["NextPage"].Enabled := false
         return
-    Print(GuiCtrlObj, "page: " . menu.page_no + 1 . (menu.is_last_page ? "$" : " ") . " (of size " . menu.page_size . ")")
-    cands := menu.candidates
+    }
+
+    candidates := menu.candidates
     Loop menu.num_candidates {
-        highlighted := A_Index = menu.highlighted_candidate_index + 1
-        Print(GuiCtrlObj, A_Index . ". " . (highlighted ? "[" : " ") . cands[A_Index].text . (highlighted ? "]" : " ") . cands[A_Index].comment)
+        candidate := candidates[A_Index]
+        list.Add(, menu.page_no * menu.page_size + A_Index, candidate.text, candidate.comment)
     }
+    state.gui["Page"].Text := "第 " . (menu.page_no + 1) . " 页" . (menu.is_last_page ? "" : " · 还有下一页")
+    state.gui["PrevPage"].Enabled := menu.page_no > 0
+    state.gui["NextPage"].Enabled := !menu.is_last_page
 }
 
-PrintContext(GuiCtrlObj, context) {
-    if context.composition.length > 0 {
-        PrintComposition(GuiCtrlObj, context.composition)
-        PrintMenu(GuiCtrlObj, context.menu)
-    } else
-        Print(GuiCtrlObj, "(not composing)")
-}
-
-PrintSession(GuiCtrlObj, sid) {
-    api := RimeApi()
-
-    if commit := api.get_commit(sid) {
-        Print(GuiCtrlObj, "commit: " . commit.text)
-        api.free_commit(commit)
+RefreshView(state, logSession := true) {
+    if !state.ready {
+        return
     }
-
-    if status := api.get_status(sid) {
-        PrintStatus(GuiCtrlObj, status)
-        api.free_status(status)
-    }
-
-    if context := api.get_context(sid) {
-        PrintContext(GuiCtrlObj, context)
-        api.free_context(context)
-    }
-}
-
-ExecuteSpecialCommand(GuiCtrlObj, line, sid) {
-    api := RimeApi()
-    if line = "print schema list" {
-        if list := api.get_schema_list() {
-            Print(GuiCtrlObj, "schema list:")
-            schemas := list.list
-            Loop list.size
-                Print(GuiCtrlObj, A_Index . ". " . schemas[A_Index].name . " [" . schemas[A_Index].schema_id . "]")
-            api.free_schema_list(list)
+    if logSession {
+        if commit := state.api.get_commit(state.session_id) {
+            AppendLog(state.gui, "提交: " . commit.text)
+            state.api.free_commit(commit)
         }
-        if current := api.get_current_schema(sid, 100)
-            Print(GuiCtrlObj, "current schema: [" . current . "]")
-        return true
     }
-    if RegExMatch(line, "select schema (.+)", &matched) {
-        schema_id := matched[1]
-        if api.select_schema(sid, schema_id)
-            Print(GuiCtrlObj, "selected schema: [" . schema_id . "]")
-        return true
+    UpdateStatus(state)
+    if (context := state.api.get_context(state.session_id)) {
+        UpdateComposition(state, context)
+        UpdateCandidates(state, context)
+        state.api.free_context(context)
     }
-    if RegExMatch(line, "select candidate (.+)", &matched) {
-        index := Integer(matched[1])
-        if index > 0 and api.select_candidate_on_current_page(sid, index - 1)
-            PrintSession(GuiCtrlObj, sid)
-        else
-            MsgBox("cannot select candidate at index " . index . ".", "Error")
-        return true
-    }
-    if line = "print candidate list" {
-        if iterator := api.candidate_list_begin(sid) {
-            Loop {
-                if not api.candidate_list_next(iterator)
-                    break
-                out := iterator.index + 1 . ". " . iterator.candidate.text
-                if comment := iterator.candidate.comment
-                    out := out . " (" . comment . ")"
-                Print(GuiCtrlObj, out)
-            }
-            api.candidate_list_end(iterator)
-        } else
-            Print(GuiCtrlObj, "no candidates.")
-        return true
-    }
-    if RegExMatch(line, "set option (.+)", &matched) {
-        is_on := true
-        option := matched[1]
-        if SubStr(option, 1, 1) = "!" {
-            is_on := false
-            option := SubStr(option, 2)
-        }
-        api.set_option(sid, option, is_on)
-        Print(GuiCtrlObj, option . " set " . (is_on ? "on" : "off") . ".")
-        return true
-    }
-    return false
 }
 
-on_message(context_object, session_id, message_type, message_value) {
+LoadSchemas(state) {
+    local dropdown, items, current
+    dropdown := state.gui["Schema"]
+    dropdown.Delete()
+    state.schema_ids := Map()
+    if !(schemas := state.api.get_schema_list()) {
+        return
+    }
+
+    items := []
+    Loop schemas.size {
+        schema := schemas.list[A_Index]
+        label := schema.name . " (" . schema.schema_id . ")"
+        items.Push(label)
+        state.schema_ids[label] := schema.schema_id
+    }
+    dropdown.Add(items)
+    current := state.api.get_current_schema(state.session_id, 100)
+    for index, label in items {
+        if state.schema_ids[label] = current {
+            dropdown.Choose(index)
+            break
+        }
+    }
+    state.api.free_schema_list(schemas)
+}
+
+SelectSchema(state, ctrl, *) {
+    if !state.ready || !ctrl.Value {
+        return
+    }
+    schema_id := state.schema_ids[ctrl.Text]
+    if state.api.select_schema(state.session_id, schema_id) {
+        AppendLog(state.gui, "已切换方案: " . schema_id)
+        RefreshView(state, false)
+    } else {
+        MsgBox("无法切换方案: " . schema_id, "Rime")
+    }
+}
+
+RefreshSchemas(state, *) {
+    LoadSchemas(state)
+    RefreshView(state, false)
+}
+
+ChangePage(state, backward, *) {
+    if state.ready && state.api.change_page(state.session_id, backward) {
+        RefreshView(state, false)
+    }
+}
+
+SetOption(state, option, ctrl, *) {
+    if !state.ready {
+        return
+    }
+    value := ctrl.Value = 1
+    state.api.set_option(state.session_id, option, value)
+    AppendLog(state.gui, option . " = " . (value ? "on" : "off"))
+    RefreshView(state, false)
+}
+
+SetAdvancedOption(state, *) {
+    option := Trim(state.gui["AdvancedOption"].Value)
+    if !option {
+        return
+    }
+    value := state.gui["AdvancedValue"].Value = 1
+    state.api.set_option(state.session_id, option, value)
+    AppendLog(state.gui, option . " = " . (value ? "on" : "off"))
+    state.gui["AdvancedOption"].Value := ""
+    RefreshView(state, false)
+}
+
+SendKeySequence(state, *) {
+    if !state.ready {
+        return
+    }
+    input := state.gui["Input"].Value
+    if !input {
+        return
+    }
+    state.gui["Input"].Value := ""
+    AppendLog(state.gui, "按键序列: " . input)
+    if state.api.simulate_key_sequence(state.session_id, input) {
+        RefreshView(state)
+    } else {
+        MsgBox("无法处理按键序列: " . input, "Rime")
+    }
+}
+
+ToggleLog(state, ctrl, *) {
+    visible := state.gui["Log"].Visible
+    state.gui["Log"].Visible := !visible
+    ctrl.Text := visible ? "显示日志" : "隐藏日志"
+    state.gui.Show("AutoSize")
+}
+
+OnMessage(context_object, session_id, message_type, message_value) {
     msg := StrGet(message_type, "UTF-8") . ": " . StrGet(message_value, "UTF-8")
     TrayTip(msg, "Session: " . session_id)
 }
 
-Send_KeySequence(&rimeReady, &session_id, GuiCtrlObj, Info) {
-    if not rimeReady
-        return
-    api := RimeApi()
-    GuiObj := GuiCtrlObj.Gui
-    printGuiCtrlObj := GuiObj["Log"]
-    line := GuiObj["Input"].Value
-    GuiObj["Input"].Value := ""
-    if not line
-        return
-    if line = "exit"
-        ExitApp
-    Print(printGuiCtrlObj, "Input: `"" . line . "`"")
-    if ExecuteSpecialCommand(printGuiCtrlObj, line, session_id)
-        return
-    if api.simulate_key_sequence(session_id, line)
-        PrintSession(printGuiCtrlObj, session_id)
-    else
-        MsgBox("Error processing key sequence: " . line, "Error")
+ExitRimeConsole(state, *) {
+    if state.session_id {
+        state.api.destroy_session(state.session_id)
+    }
+    state.api.finalize()
 }
 
 main() {
-    rimeReady := false
     rime := RimeApi()
     traits := RimeTraits()
     traits.app_name := "rime.ahk_console"
     traits.shared_data_dir := "rime"
     traits.user_data_dir := "rime"
-    session_id := 0
 
-    Main := Gui()
-    Main.MarginX := 15
-    Main.MarginY := 15
-    Main.SetFont("S12", "Microsoft YaHei UI")
-    Main.Title := "AHK Rime Console"
-    maxLogLine := 12
-    Main.OnEvent("Close", (*) => ExitApp)
-    logs := Main.AddEdit("vLog xm ym w480 ReadOnly VScroll r" . maxLogLine)
-    inputs := Main.AddEdit("vInput -Multi w480")
-    btn := Main.AddButton("Default Hidden w0 h0 vDftBtn")
-    btn.OnEvent("Click", Send_KeySequence.Bind(&rimeReady, &session_id))
-    ControlFocus(Main["Input"])
+    Main := Gui(, "AHK Rime GUI")
+    Main.MarginX := 14
+    Main.MarginY := 12
+    Main.SetFont("S10", "Microsoft YaHei UI")
+    Main.OnEvent("Close", (*) => ExitApp())
+
+    Main.AddText("xm ym", "方案")
+    schema := Main.AddDropDownList("x+8 yp-4 w260 vSchema")
+    refreshButton := Main.AddButton("x+6 yp w72", "刷新")
+    status := Main.AddText("xm y+10 w430 vStatus", "初始化中…")
+
+    Main.AddGroupBox("xm y+10 w520 h98", "输入")
+    composition := Main.AddText("x26 yp+28 w496 h24 vComposition cBlue", "（未输入）")
+    input := Main.AddEdit("x26 y+10 w400 h28 vInput -Multi")
+    send := Main.AddButton("x+8 yp w84 Default", "发送")
+
+    Main.AddGroupBox("xm y+12 w520 h184", "候选词")
+    candidates := Main.AddListView("x26 yp+28 w496 h120 vCandidates -Multi", ["序号", "候选", "注释"])
+    candidates.ModifyCol(1, 55)
+    candidates.ModifyCol(2, 200)
+    candidates.ModifyCol(3, 220)
+    page := Main.AddText("x26 y+8 w230 vPage", "无候选")
+    prevPage := Main.AddButton("x+50 yp-4 w92 vPrevPage Disabled", "上一页")
+    nextPage := Main.AddButton("x+8 yp w92 vNextPage Disabled", "下一页")
+
+    Main.AddGroupBox("xm y+12 w520 h100", "常用选项")
+    ascii := Main.AddCheckBox("x26 yp+28 vAscii", "ASCII 模式")
+    fullShape := Main.AddCheckBox("x+24 yp vFullShape", "全角模式")
+    simplified := Main.AddCheckBox("x+24 yp vSimplified", "简体模式")
+    Main.AddText("xm+8 y+16", "高级 option")
+    advancedOption := Main.AddEdit("x+8 yp-4 w180 vAdvancedOption -Multi")
+    advancedValue := Main.AddCheckBox("x+8 yp+2 vAdvancedValue", "开启")
+    advancedSet := Main.AddButton("x+12 yp-4 w72", "应用")
+
+    logToggleButton := Main.AddButton("xm y+24 w92", "隐藏日志")
+    log := Main.AddEdit("xm y+8 w520 r8 ReadOnly VScroll vLog")
+
+    state := {api: rime, gui: Main, session_id: 0, ready: false, schema_ids: Map()}
+    schema.OnEvent("Change", SelectSchema.Bind(state))
+    refreshButton.OnEvent("Click", RefreshSchemas.Bind(state))
+    send.OnEvent("Click", SendKeySequence.Bind(state))
+    prevPage.OnEvent("Click", ChangePage.Bind(state, true))
+    nextPage.OnEvent("Click", ChangePage.Bind(state, false))
+    ascii.OnEvent("Click", SetOption.Bind(state, "ascii_mode"))
+    fullShape.OnEvent("Click", SetOption.Bind(state, "full_shape"))
+    simplified.OnEvent("Click", SetOption.Bind(state, "simplification"))
+    advancedSet.OnEvent("Click", SetAdvancedOption.Bind(state))
+    logToggleButton.OnEvent("Click", ToggleLog.Bind(state))
+
     Main.Show("AutoSize")
-
+    AppendLog(Main, "初始化中…")
     rime.setup(traits)
-    rime.set_notification_handler(on_message, 0)
-
-    Print(logs, "initializing...")
-
+    rime.set_notification_handler(OnMessage, 0)
     rime.initialize(0)
-    full_check := true
-    success := rime.start_maintenance(full_check)
-    if success {
+    if rime.start_maintenance(true) {
         rime.join_maintenance_thread()
     }
 
-    rimeReady := true
-    Print(logs, "ready.")
-
-    session_id := rime.create_session()
-    if not session_id {
-        MsgBox("Error creating rime session.", "Error")
+    state.session_id := rime.create_session()
+    if !state.session_id {
+        MsgBox("无法创建 Rime 会话。", "Rime")
         ExitApp(1)
     }
-
-    Main.Title := "AHK Rime Console (Session " . session_id . ")"
-
-    OnExit ExitRimeConsole
-
-    ExitRimeConsole(ExitReason, ExitCode) {
-        rime.destroy_session(session_id)
-        rime.finalize()
-    }
+    state.ready := true
+    Main.Title := "AHK Rime GUI (Session " . state.session_id . ")"
+    OnExit(ExitRimeConsole.Bind(state))
+    LoadSchemas(state)
+    RefreshView(state, false)
+    AppendLog(Main, "已就绪。回车或点击“发送”可发送按键序列。")
+    input.Focus()
 }
 
 main()
