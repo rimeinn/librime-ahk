@@ -645,27 +645,40 @@ class RimeModule extends RimeVersionedStruct {
 
 class RimeApi extends RimeApiStruct {
     __New(dll_path := "") {
+        local dll, librime_lib_dir, weasel_root, ptr, real_size, copy_size
         try {
-            if dll_path && dll := DllCall("LoadLibrary", "Str", dll_path, "Ptr")
+            if dll_path && (dll := DllCall("LoadLibrary", "Str", dll_path, "Ptr")) {
                 RimeApi.rimeDll := dll
+            }
         }
-        if not RimeApi.rimeDll {
-            if librime_lib_dir := EnvGet("LIBRIME_LIB_DIR")
+        if !RimeApi.rimeDll {
+            if (librime_lib_dir := EnvGet("LIBRIME_LIB_DIR")) {
                 RimeApi.rimeDll := DllCall("LoadLibrary", "Str", librime_lib_dir . "\rime.dll", "Ptr")
+            }
 
-            if not RimeApi.rimeDll and weasel_root := RegRead("HKEY_LOCAL_MACHINE\Software\Rime\Weasel", "WeaselRoot", "")
+            if !RimeApi.rimeDll && (weasel_root := RegRead("HKEY_LOCAL_MACHINE\Software\Rime\Weasel", "WeaselRoot", "")) {
                 RimeApi.rimeDll := DllCall("LoadLibrary", "Str", weasel_root . "\rime.dll", "Ptr")
+            }
 
-            if not RimeApi.rimeDll
+            if !RimeApi.rimeDll {
                 throw RimeError("The library rime.dll not found.")
+            }
         }
 
         super.__New(RimeApi.struct_size, 0)
-        if not ptr := DllCall("rime\rime_get_api", "CDecl Ptr")
+        if !(ptr := DllCall("rime\rime_get_api", "CDecl Ptr")) {
             throw RimeError("Failed to get rime API.")
-        this.copy(ptr)
-        if VerCompare(this.get_version(), RimeApi.min_version) < 0
-            throw RimeError(Format("Current librime version {} is smaller than required {}.", this.get_version(), RimeApi.min_version))
+        }
+        real_size := A_IntSize + NumGet(ptr, RimeApi.data_size_offset, "Int")
+        if (real_size <= RimeApi.get_version_offset) {
+            throw RimeError("Invalid rime API data size.")
+        }
+        copy_size := Min(real_size, RimeApi.struct_size)
+        this.copy(ptr, , , copy_size)
+        if VerCompare(this.get_version(), RimeApi.min_version) < 0 {
+            throw RimeError(Format("Current librime version {} is smaller than required {}.",
+                this.get_version(), RimeApi.min_version))
+        }
     }
 
     static rimeDll := DllCall("LoadLibrary", "Str", "rime.dll", "Ptr")

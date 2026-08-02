@@ -59,12 +59,20 @@ class RimeUserDictIterator extends RimeStruct {
 
 class RimeLeversApi extends RimeApiStruct {
     __New(rime := RimeApi()) {
+        local ptr, real_size, copy_size
         super.__New(RimeLeversApi.struct_size, 0)
-        if not rime or not this.module := rime.find_module("levers")
+        if !rime || !(this.module := rime.find_module("levers")) {
             throw RimeError("Cannot find module levers.")
-        if not ptr := this.module.get_api()
+        }
+        if !(ptr := this.module.get_api()) {
             throw RimeError("Failed to get levers API.")
-        this.copy(ptr)
+        }
+        real_size := A_IntSize + NumGet(ptr, RimeLeversApi.data_size_offset, "Int")
+        if (real_size <= A_IntSize) {
+            throw RimeError("Invalid levers API data size.")
+        }
+        copy_size := Min(real_size, RimeLeversApi.struct_size)
+        this.copy(ptr, , , copy_size)
     }
 
     static data_size_offset := 0

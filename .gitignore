@@ -3,6 +3,7 @@
 */rime/installation.yaml
 */rime/user.yaml
 tests/junit.xml
+tests/*.log
 *.dll
 *.exe
 test.ahk

@@ -144,6 +144,12 @@ Class RimeApiTests {
         levers.custom_settings_destroy(custom_settings)
     }
 
+    Test_ApiCopiesLastFunctionPointer() {
+        local ptr := DllCall("rime\rime_get_api", "CDecl Ptr")
+
+        TestRunner.Assert(this.api.fp(RimeApi.change_page_offset) == NumGet(ptr, RimeApi.change_page_offset, "Ptr"))
+    }
+
     End() {
         this.api.finalize()
         this.DeleteProp("api")
