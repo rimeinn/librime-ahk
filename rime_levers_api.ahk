@@ -53,7 +53,7 @@ class RimeUserDictIterator extends RimeStruct {
     static struct_size := RimeUserDictIterator.i_offset + A_PtrSize ; size_t
 
     i {
-        get => this.num_get(RimeUserDictIterator.i_offset, "UInt") ; size_t
+        get => this.num_get(RimeUserDictIterator.i_offset, "UPtr") ; size_t
     }
 }
 
