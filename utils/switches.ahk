@@ -295,37 +295,56 @@ class RimeSwitches extends Object {
     }
 
     static _get_state_label(rime_api, config, path, state_index, abbreviated) {
-        if not rime_api or not config or not path
+        local state_size
+        local abbrev_path
+        local abbrev_size
+        local label_path
+        local iter
+
+        if !rime_api || !config || !path || state_index < 0 {
             return ""
-        if not state_size := rime_api.config_list_size(config, path . "/states") or state_size <= state_index
+        }
+
+        state_size := rime_api.config_list_size(
+            config,
+            path . "/states"
+        )
+        if state_size <= state_index {
             return ""
+        }
+
+        label_path := path . "/states"
+
         if abbreviated {
-            if not abbrev_size := rime_api.config_begin_list(config, path . "/abbrev") or abbrev_size <= state_index {
-                if not state_iter := rime_api.config_begin_list(config, path . "/sates")
-                    return ""
-                while rime_api.config_next(state_iter) {
-                    if A_Index - 1 != state_index
-                        continue
-                    if not value := rime_api.config_get_string(config, state_iter.path)
-                        continue
-                    rime_api.config_end(state_iter)
-                    return value
-                }
-                rime_api.config_end(state_iter)
-                return ""
+            abbrev_path := path . "/abbrev"
+            abbrev_size := rime_api.config_list_size(
+                config,
+                abbrev_path
+            )
+            if abbrev_size > state_index {
+                label_path := abbrev_path
             }
-            if not abbrev_iter := rime_api.config_begin_list(config, path . "/abbrev")
-                return ""
-            while rime_api.config_next(abbrev_iter) {
-                if A_Index - 1 != state_index
-                    continue
-                if not value := rime_api.config_get_string(config, abbrev_iter.path)
-                    continue
-                rime_api.config_end(abbrev_iter)
-                return value
-            }
-            rime_api.config_end(abbrev_iter)
+        }
+
+        if !(iter := rime_api.config_begin_list(
+            config,
+            label_path
+        )) {
             return ""
+        }
+
+        try {
+            while rime_api.config_next(iter) {
+                if A_Index - 1 == state_index {
+                    return rime_api.config_get_string(
+                        config,
+                        iter.path
+                    )
+                }
+            }
+            return ""
+        } finally {
+            rime_api.config_end(iter)
         }
     }
 } ; RimeSwitches
