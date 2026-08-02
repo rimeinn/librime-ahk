@@ -40,51 +40,60 @@ class RimeString extends Buffer {
 }
 
 /**
- * UTF-8 C-String array, may not be null-terminated and null value can exist in the middle
+ * Read-only UTF-8 C-string array, null-terminated
  * 
- * The consecutive `Length * A_PtrSize` bytes from beginning
- * stores the pointers to each C-string, `0` for null value
+ * The consecutive `(Length + 1) * A_PtrSize` bytes from beginning
+ * stores the pointers to each C-string, `0` for the terminating
+ * null pointer
  * 
  * After all pointers, the rest consecutive memory to the end
- * stores all null-terminated C-string one by one
+ * stores all null-terminated C-strings one by one
  */
-class RimeStringArray extends Buffer {
+class RimeNullTerminatedStringArray extends Buffer {
     ; Copyright (c) thqby <https://www.autohotkey.com/boards/viewtopic.php?t=122600#p544500>
     __New(val_arr := []) {
-        sz := 0, ptrsz := 0
+        local size := 0
+        local len := 0
+        local p
+        local pstr
+
         for val in val_arr {
-            ptrsz += A_PtrSize
-            if not IsSet(val)
-                continue
-            sz += StrPut(val, "UTF-8")
-        }
-        super.__New(sz + ptrsz, 0)
-        p := this.Ptr, pstr := p + val_arr.Length * A_PtrSize
-        for idx, val in val_arr {
-            if not IsSet(val)
-                p := NumPut("Ptr", 0, p)
-            else {
-                p := NumPut("Ptr", pstr, p)
-                pstr += StrPut(val, pstr, "UTF-8")
+            if !IsSet(val) {
+                break
             }
+            ++len
+            size += StrPut(val, "UTF-8")
         }
+
+        super.__New((len + 1) * A_PtrSize + size, 0)
+        this.Length := len
+
+        p := this.Ptr
+        pstr := p + (len + 1) * A_PtrSize
+
+        Loop len {
+            p := NumPut("Ptr", pstr, p)
+            pstr += StrPut(val_arr[A_Index], pstr, "UTF-8")
+        }
+
+        NumPut("Ptr", 0, p) ; null-terminated
     }
 
     /**
      * Get the string at index
      * 
-     * @param index must be >= 0; NOTE: there's no boundary check for index > Length
-     * @returns {String | Pointer} 0 returns the pointer to the array, >0 returns the string at index
+     * @param index must be > 0
+     * @returns {String | Pointer} returns the string at the index
      */
     __Item[index] {
         get {
-            if index < 0
+            if index <= 0 || index > this.Length {
                 throw RimeError("Invalid index.")
-            if index == 0
-                return NumGet(this, 0, "Ptr")
-            if ptr := NumGet(this, (index - 1) * A_PtrSize, "Ptr")
+            }
+            if ptr := NumGet(this, (index - 1) * A_PtrSize, "Ptr") {
                 return StrGet(ptr, "UTF-8")
-            return 0
+            }
+            throw RimeError("Memory corruption: null pointer found before the null terminator.")
         }
     }
 }
@@ -131,18 +140,20 @@ class RimeStruct extends Buffer {
     ; librime's string arrays are null-terminated
     c_str_array_get(offset) {
         res := Array()
-        if ptr := this.num_get(offset, "Ptr")
+        if ptr := this.num_get(offset, "Ptr") {
             Loop {
-                if not val := this.c_str_get(ptr, (A_Index - 1) * A_PtrSize)
-                    break
-                res.Push(val)
+                if !p := NumGet(ptr, (A_Index - 1) * A_PtrSize, "Ptr") {
+                    break ; null-terminated
+                }
+                res.Push(StrGet(p, "UTF-8"))
             }
+        }
         return res
     }
     c_str_array_put(val_array, tgt := this, offset := 0) {
         if not tgt
             return Buffer()
-        arr_buf := RimeStringArray(val_array)
+        arr_buf := RimeNullTerminatedStringArray(val_array)
         NumPut("Ptr", arr_buf.Ptr, tgt, offset)
         return arr_buf
     }

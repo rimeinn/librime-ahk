@@ -324,8 +324,8 @@ class RimeLeversApi extends RimeApiStruct {
      * @returns `True` on success, `False` on failure
      */
     select_schemas(settings, schema_id_list) {
-        arr := RimeStringArray(schema_id_list)
-        return DllCall(this.fp(RimeLeversApi.select_schemas_offset), "Ptr", settings, "Ptr", arr, "Int", schema_id_list.Length, "CDecl Int")
+        local arr := RimeNullTerminatedStringArray(schema_id_list)
+        return DllCall(this.fp(RimeLeversApi.select_schemas_offset), "Ptr", settings, "Ptr", arr, "Int", arr.Length, "CDecl Int")
     }
 
     /**

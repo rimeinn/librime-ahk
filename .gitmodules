@@ -1,4 +1,0 @@
-[submodule "tests/Yunit"]
-	path = tests/Yunit
-	url = https://github.com/Uberi/Yunit
-	branch = v2

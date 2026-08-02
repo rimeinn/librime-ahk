@@ -1,8 +1,4 @@
-#Include Yunit\Yunit.ahk
-#Include Yunit\Stdout.ahk
-#Include Yunit\OutputDebug.ahk
-#Include Yunit\JUnit.ahk
-#Include Yunit\Window.ahk
+#Include test_runner.ahk
 
 #Include ..\rime_api.ahk
 #Include ..\rime_levers_api.ahk
@@ -17,19 +13,19 @@ class RimeStringTests {
     }
 
     Test_Size() {
-        Yunit.Assert(this.str1.Size == 14)
-        Yunit.Assert(this.str2.Size == 19)
-        Yunit.Assert(this.str3.Size == 9)
-        Yunit.Assert(this.str4.Size == 75)
-        Yunit.Assert(this.str5.Size == 462)
+        TestRunner.Assert(this.str1.Size == 14)
+        TestRunner.Assert(this.str2.Size == 19)
+        TestRunner.Assert(this.str3.Size == 9)
+        TestRunner.Assert(this.str4.Size == 75)
+        TestRunner.Assert(this.str5.Size == 462)
     }
 
     Test_ToString() {
-        Yunit.Assert(String(this.str1) == "Hello, World!")
-        Yunit.Assert(String(this.str2) == "你好，世界！")
-        Yunit.Assert(String(this.str3) == "🐇🐰")
-        Yunit.Assert(String(this.str4) == "床前明月光，疑是地上霜。`r`n举头望明月，低头思故乡。")
-        Yunit.Assert(String(this.str5) == "قد ومن فرنسا الإمتعاض, استراليا، وبريطانيا ما كما. حين بـ سبتمبر الأولى لمحاكم, يكن وحتّى منتصف ما. لمّ ويعزى وهولندا، قد, و دخول شعار نهاية نفس. عرض وإقامة للإتحاد عل, مع قام وبعد وتتحمّل, جُل خيار البرية المتّبعة إذ. لكون إستعمل لم هذا, تم به، أوزار والقرى.")
+        TestRunner.Assert(String(this.str1) == "Hello, World!")
+        TestRunner.Assert(String(this.str2) == "你好，世界！")
+        TestRunner.Assert(String(this.str3) == "🐇🐰")
+        TestRunner.Assert(String(this.str4) == "床前明月光，疑是地上霜。`r`n举头望明月，低头思故乡。")
+        TestRunner.Assert(String(this.str5) == "قد ومن فرنسا الإمتعاض, استراليا، وبريطانيا ما كما. حين بـ سبتمبر الأولى لمحاكم, يكن وحتّى منتصف ما. لمّ ويعزى وهولندا، قد, و دخول شعار نهاية نفس. عرض وإقامة للإتحاد عل, مع قام وبعد وتتحمّل, جُل خيار البرية المتّبعة إذ. لكون إستعمل لم هذا, تم به، أوزار والقرى.")
     }
 
     End() {
@@ -39,25 +35,28 @@ class RimeStringTests {
     }
 }
 
-class RimeStringArrayTests {
+class RimeNullTerminatedStringArrayTests {
     Begin() {
-        arr := ["Hello", "你好", "🐇🐰"]
-        this.str_arr := RimeStringArray(arr)
+        local values := ["Hello", "你好", "🐇🐰"]
+
+        this.str_arr := RimeNullTerminatedStringArray(values)
+        TestRunner.Assert(values.Length == 3)
     }
 
     Test_Basic() {
-        Yunit.Assert(this.str_arr.Size == (3 * A_PtrSize + 22))
-        Yunit.Assert(this.str_arr[0] !== 0)
+        TestRunner.Assert(this.str_arr.Length == 3)
+        TestRunner.Assert(this.str_arr.Size == 4 * A_PtrSize + 22)
+        TestRunner.Assert(
+            NumGet(this.str_arr, 3 * A_PtrSize, "Ptr") == 0
+        )
     }
 
-    Test_StringAt() {
-        Yunit.Assert(this.str_arr[1] == "Hello")
-        Yunit.Assert(this.str_arr[2] == "你好")
-        Yunit.Assert(this.str_arr[3] == "🐇🐰")
-    }
+    Test_Empty() {
+        local str_arr := RimeNullTerminatedStringArray()
 
-    End() {
-        this.DeleteProp("str_arr")
+        TestRunner.Assert(str_arr.Length == 0)
+        TestRunner.Assert(str_arr.Size == A_PtrSize)
+        TestRunner.Assert(NumGet(str_arr, 0, "Ptr") == 0)
     }
 }
 
@@ -67,7 +66,16 @@ class RimeTraitsTests {
     }
 
     Test_Basic() {
-        Yunit.Assert(this.traits.data_size == 10 * A_PtrSize + A_IntSize + 2 * A_IntPaddingSize)
+        TestRunner.Assert(this.traits.data_size == 10 * A_PtrSize + A_IntSize + 2 * A_IntPaddingSize)
+    }
+
+    Test_ModulesAreNullTerminated() {
+        this.traits.modules := ["default", "autohotkey"]
+        TestRunner.Assert(NumGet(this.traits.__modules, 2 * A_PtrSize, "Ptr") == 0)
+        TestRunner.Assert(this.traits.__modules.Length == 2) ; act like a native AutoHotkey array
+        TestRunner.Assert(this.traits.modules.Length == 2)
+        TestRunner.Assert(this.traits.modules[1] == "default")
+        TestRunner.Assert(this.traits.modules[2] == "autohotkey")
     }
 
     End() {
@@ -91,48 +99,48 @@ Class RimeApiTests {
     ; Rime has multi-threading components, which
     ; are beyond AutoHotkey's capability to handle.
     ; Therefore all tests must be done within one function.
-    AllTests() {
+    Test_All() {
         api := this.api
 
-        Yunit.Assert(api.data_size == 98 * A_PtrSize + A_IntPaddingSize)
+        TestRunner.Assert(api.data_size == 98 * A_PtrSize + A_IntPaddingSize)
 
         fn := "create_session"
-        Yunit.Assert(api.api_available(fn), Format(this.na_msg, fn))
+        TestRunner.Assert(api.api_available(fn), Format(this.na_msg, fn))
         local test_session := api.create_session()
-        Yunit.Assert(0 !== test_session)
+        TestRunner.Assert(0 !== test_session)
 
         fn := "get_context"
-        Yunit.Assert(api.api_available(fn), Format(this.na_msg, fn))
+        TestRunner.Assert(api.api_available(fn), Format(this.na_msg, fn))
         ctx := api.get_context(test_session)
-        Yunit.Assert(0 !== ctx)
-        Yunit.Assert(0 == ctx.menu.num_candidates)
+        TestRunner.Assert(0 !== ctx)
+        TestRunner.Assert(0 == ctx.menu.num_candidates)
 
         fn := "get_status"
-        Yunit.Assert(api.api_available(fn), Format(this.na_msg, fn))
+        TestRunner.Assert(api.api_available(fn), Format(this.na_msg, fn))
         status := api.get_status(test_session)
-        Yunit.Assert(0 !== status)
-        Yunit.Assert(!status.is_composing)
+        TestRunner.Assert(0 !== status)
+        TestRunner.Assert(!status.is_composing)
 
         fn := "destroy_session"
-        Yunit.Assert(api.api_available(fn), Format(this.na_msg, fn))
-        Yunit.Assert(api.destroy_session(test_session))
+        TestRunner.Assert(api.api_available(fn), Format(this.na_msg, fn))
+        TestRunner.Assert(api.destroy_session(test_session))
 
 
         levers := this.levers
 
-        Yunit.Assert(levers.data_size == 32 * A_PtrSize + A_IntPaddingSize)
+        TestRunner.Assert(levers.data_size == 32 * A_PtrSize + A_IntPaddingSize)
 
         fn := "custom_settings_init"
-        Yunit.Assert(levers.api_available(fn), Format(this.na_msg, fn))
+        TestRunner.Assert(levers.api_available(fn), Format(this.na_msg, fn))
         custom_settings := levers.custom_settings_init("levers_test", "rime_test")
-        Yunit.Assert(!!custom_settings)
+        TestRunner.Assert(!!custom_settings)
 
         fn := "customize_bool"
-        Yunit.Assert(levers.api_available(fn), Format(this.na_msg, fn))
-        Yunit.Assert(levers.customize_bool(custom_settings, "test_key", true))
+        TestRunner.Assert(levers.api_available(fn), Format(this.na_msg, fn))
+        TestRunner.Assert(levers.customize_bool(custom_settings, "test_key", true))
 
         fn := "custom_settings_destroy"
-        Yunit.Assert(levers.api_available(fn), Format(this.na_msg, fn))
+        TestRunner.Assert(levers.api_available(fn), Format(this.na_msg, fn))
         levers.custom_settings_destroy(custom_settings)
     }
 
@@ -144,8 +152,7 @@ Class RimeApiTests {
     }
 }
 
-if A_Args.Length {
-    Yunit.Use(YunitJUnit).Test(RimeStringTests, RimeStringArrayTests, RimeTraitsTests, RimeApiTests)
-} else {
-    Yunit.Use(YunitStdOut, YunitOutputDebug, YunitJUnit, YunitWindow).Test(RimeStringTests, RimeStringArrayTests, RimeTraitsTests, RimeApiTests)
-}
+results := TestRunner.Run(RimeStringTests, RimeNullTerminatedStringArrayTests, RimeTraitsTests, RimeApiTests)
+failures := TestRunner.WriteJUnit(results, A_ScriptDir "\junit.xml")
+TestRunner.Print(results, "*")
+ExitApp(failures ? 1 : 0)
