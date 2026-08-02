@@ -1,7 +1,19 @@
-# Rime API Console
+# Rime tools
+
+Examples to demonstrate the usages. Require `rime.dll` to run.
+
+## Rime API Console
 
 Ported from [rime_api_console.cc](https://github.com/rime/librime/blob/master/tools/rime_api_console.cc).
 
-## How to run it
+```powershell
+& 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe' rime_api_console.ahk
+```
 
-After repo cloned, download from librime [release](https://github.com/rime/librime/releases) (or action artifacts), extract `rime.dll` into this directory, and run `rime_api_console.ahk`.
+## AHK Rime Module
+
+Demonstrate the definitions of a custom Rime module and the associated API struct.
+
+```powershell
+& 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe' rime_module.ahk | Write-Output
+```
