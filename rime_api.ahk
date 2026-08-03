@@ -568,7 +568,7 @@ class RimeSchemaListItem extends RimeStruct {
 
 class RimeSchemaList extends RimeStruct {
     __New() {
-        super.__New(RimeSchemaList.struct_size 0)
+        super.__New(RimeSchemaList.struct_size, 0)
     }
 
     static size_offset := 0
@@ -817,7 +817,6 @@ class RimeApi extends RimeApiStruct {
     ; () => void
     finalize() {
         DllCall(this.fp(RimeApi.finalize_offset), "CDecl")
-        DllCall("FreeLibrary", "Ptr", RimeApi.rimeDll)
         RimeApi.rimeDll := 0
     }
 
